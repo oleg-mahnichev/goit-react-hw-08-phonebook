@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 
 export const Form = styled.form`
-  max-width: 300px;
+  max-width: 400px;
   margin: 0 auto;
   padding: 20px;
   border: 1px solid #ccc;
@@ -13,6 +13,7 @@ export const Label = styled.label`
   display: block;
   margin-bottom: 10px;
   font-weight: bold;
+  margin-bottom: 10px;
 `;
 
 export const Input = styled.input`

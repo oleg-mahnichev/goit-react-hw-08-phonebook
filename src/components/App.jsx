@@ -1,40 +1,46 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import { useSelector } from 'react-redux';
-
-import { ContactForm, submit } from './ContactForm/ContactForm';
-import { Filter } from './Filter/Filter';
-import { ContactList } from './ContactList/ContactList';
-import { StyledDiv, ContactsTitle, HeaderTitle } from './Header.style';
+import { Route, Routes, useNavigate } from 'react-router-dom';
+import { changeFilter } from 'redux/filterSlice';
 import { useDispatch } from 'react-redux';
-import { deleteContact, fetchContacts } from '../redux/operations';
-import { changeFilter } from '../redux/filterSlice';
+import {
+  deleteContact,
+  logIn,
+  logOut,
+  signUp,
+  userLocalStorage,
+} from 'api/api';
+import { submit } from './ContactForm/ContactForm';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const Navigation = lazy(() => import('./Header/Header'));
+const RegisterForm = lazy(() => import('../pages/RegisterForm/RegisterForm'));
+const LoginForm = lazy(() => import('../pages/LoginForm/LoginForm'));
+const Contacts = lazy(() => import('../pages/Contacts/Contacts'));
 
 export const App = () => {
-  const dispatch = useDispatch();
+  const contacts = useSelector(state => state.contacts.items);
+  const filter = useSelector(state => state.filter);
+  const userEmail = useSelector(state => state.auth.user.email);
+  const isLoggedIn = useSelector(state => state.auth.isLoggedIn);
+  const isRefreshing = useSelector(state => state.auth.isRefreshing);
+  const userName = useSelector(state => state.auth.user.name);
+  const authError = useSelector(state => state.auth.error);
 
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   useEffect(() => {
-    dispatch(fetchContacts());
+    dispatch(userLocalStorage());
   }, [dispatch]);
 
   const onSubmitContact = evt => {
     evt.preventDefault();
-    const name = evt.target.name.value.toLowerCase(); // Перетворити введене ім'я до нижнього регістру
-    const contactExists = contacts.some(
-      contact => contact.name.toLowerCase() === name
-    ); // Перетворити імена контактів до нижнього регістру для порівняння
-
-    if (contactExists) {
-      alert('This contact is already in your contact list!!!');
-    } else {
-      submit(evt, dispatch);
-    }
+    submit(evt, dispatch, contacts);
   };
-
   const onChangeInput = evt => {
     dispatch(changeFilter(evt.target.value));
   };
-  const contacts = useSelector(state => state.contacts.items);
-  const filter = useSelector(state => state.filter);
   const filterByName = () => {
     return contacts.filter(contact =>
       contact.name.toUpperCase().includes(filter.toUpperCase())
@@ -43,18 +49,95 @@ export const App = () => {
   const deletingContact = evt => {
     dispatch(deleteContact(evt.target.id));
   };
-  return (
-    <StyledDiv>
-      <HeaderTitle>Phonebook</HeaderTitle>
-      <ContactForm formSubmit={onSubmitContact} />
-      <ContactsTitle>Contacts</ContactsTitle>
-      <Filter input={onChangeInput} />
-      <ContactList
-        contacts={contacts}
-        filter={filter}
-        filtering={filterByName}
-        deleting={deletingContact}
-      />
-    </StyledDiv>
+
+  const onSignUp = async evt => {
+    evt.preventDefault();
+    const obj = {
+      name: evt.currentTarget[0].value,
+      email: evt.currentTarget[1].value,
+      password: evt.currentTarget[2].value,
+    };
+    const formReset = () => {
+      evt.target[0].value = '';
+      evt.target[1].value = '';
+      evt.target[2].value = '';
+    };
+
+    await dispatch(signUp(obj));
+
+    if (authError === true) {
+      // Вместо alert
+      toast.error('Registration failed. Please check your details.');
+      return;
+    } else {
+      await formReset();
+      navigate('/contacts', { replace: true });
+      // Вместо alert
+      toast.success('Registration successful! You are now logged in.');
+    }
+  };
+  const onLogin = async evt => {
+    evt.preventDefault();
+    const obj = { email: evt.target[0].value, password: evt.target[1].value };
+    const formReset = () => {
+      evt.target[0].value = '';
+      evt.target[1].value = '';
+    };
+    await dispatch(logIn(obj));
+
+    if (authError === true) {
+      // Вместо alert
+      toast.error('Login failed. Please check your credentials.');
+      return;
+    } else {
+      await formReset();
+      navigate('/contacts', { replace: true });
+      // Вместо alert
+      toast.success('Login successful!');
+    }
+  };
+  const onLogout = async () => {
+    await dispatch(logOut());
+    navigate('/', { replace: true });
+    // Вместо alert
+    toast.info('You have been logged out.');
+  };
+  return isRefreshing ? (
+    <div>Loading</div>
+  ) : (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ToastContainer />
+      <Routes>
+        <Route
+          path="/register"
+          element={<RegisterForm onSignUp={onSignUp} isLoggedIn={isLoggedIn} />}
+        />
+        <Route
+          path="/login"
+          element={<LoginForm onLogin={onLogin} isLoggedIn={isLoggedIn} />}
+        />
+        <Route
+          path="/contacts"
+          element={
+            <Contacts
+              onSubmitContact={onSubmitContact}
+              onChangeInput={onChangeInput}
+              contacts={contacts}
+              filter={filter}
+              filterByName={filterByName}
+              deletingContact={deletingContact}
+              userEmail={userEmail}
+              onLogout={onLogout}
+              isLoggedIn={isLoggedIn}
+            />
+          }
+        />
+        <Route
+          path="/"
+          element={<Navigation isLoggedIn={isLoggedIn} userName={userName} />}
+        />
+        <Route path="*" element={<div>Ups something went wrong</div>} />
+      </Routes>
+    </Suspense>
   );
 };
